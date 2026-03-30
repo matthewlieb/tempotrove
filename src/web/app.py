@@ -312,6 +312,41 @@ def _parse_chat_resume(
     return thread_id, session_uid, base_tid, decisions
 
 
+_SPOTIFY_ID_CLAIM_RE = re.compile(r"^[a-zA-Z0-9]{10,64}$")
+
+
+def _spotify_user_id_claim_error(data: dict | None, session_uid: str | None) -> JSONResponse | None:
+    """If the client sends ``spotify_user_id``, it must match the signed session (defense in depth)."""
+    if not isinstance(data, dict):
+        return None
+    raw = data.get("spotify_user_id")
+    if raw is None or raw is False:
+        return None
+    claim = str(raw).strip()
+    if not claim:
+        return None
+    if not _SPOTIFY_ID_CLAIM_RE.fullmatch(claim):
+        return JSONResponse(
+            status_code=400,
+            content={"reply": "Invalid `spotify_user_id` in request body.", "error": True, "tool_trace": []},
+        )
+    if session_uid and claim != session_uid:
+        _LOG.warning(
+            "spotify_user_id body claim does not match session cookie (session=%s claim=%s)",
+            session_uid,
+            claim,
+        )
+        return JSONResponse(
+            status_code=403,
+            content={
+                "reply": "Spotify login session does not match `spotify_user_id`. Refresh the page and reconnect Spotify.",
+                "error": True,
+                "tool_trace": [],
+            },
+        )
+    return None
+
+
 def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
 
@@ -802,6 +837,9 @@ async def chat_json(request: Request):
             )
 
         body_str, thread_id, session_uid, base_tid = parsed
+        claim_err = _spotify_user_id_claim_error(data, session_uid)
+        if claim_err is not None:
+            return claim_err
         use_checkpoint = _use_persistent_checkpointer()
         previous = None if use_checkpoint else _thread_messages.get(thread_id)
         if _chat_debug_enabled():
@@ -926,6 +964,9 @@ async def chat_resume(request: Request):
                 },
             )
         thread_id, session_uid, base_tid, decisions = parsed
+        claim_err = _spotify_user_id_claim_error(data, session_uid)
+        if claim_err is not None:
+            return claim_err
         use_checkpoint = _use_persistent_checkpointer()
         if not use_checkpoint:
             return JSONResponse(
@@ -1035,6 +1076,9 @@ async def chat_stream(request: Request):
             )
 
         body_str, thread_id, session_uid, base_tid = parsed
+        claim_err = _spotify_user_id_claim_error(data, session_uid)
+        if claim_err is not None:
+            return claim_err
         use_checkpoint = _use_persistent_checkpointer()
         previous = None if use_checkpoint else _thread_messages.get(thread_id)
 

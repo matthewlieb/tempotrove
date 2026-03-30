@@ -24,15 +24,13 @@ def get_spotify_user_context() -> str | None:
 def resolve_spotify_user_id_for_tools() -> str | None:
     """Spotify user id for tool execution.
 
-    FastAPI sets :func:`set_spotify_user_context` on the request thread. LangGraph may run
-    tools without inheriting that :class:`contextvars.ContextVar`, which produced false
-    "Spotify is not configured" despite an active session. In that case, read
-    ``thread_id`` from the LangGraph runnable config (see ``_parse_chat_turn`` in
-    ``app.py``): ``"{spotify_user_id}::{conversation_id}"`` or plain ``spotify_user_id``.
+    **Prefer LangGraph runnable config** (``thread_id`` prefix from ``/chat`` / ``stream``).
+    That value is scoped to this graph invocation and stays correct under **concurrent
+    streaming requests**. :func:`set_spotify_user_context` is only a fallback: the
+    ContextVar is tied to the OS thread/event-loop and can be **overwritten between
+    stream chunks** when another user's request runs, which previously caused tools to
+    act as the wrong Spotify account.
     """
-    ctx = get_spotify_user_context()
-    if ctx:
-        return ctx.strip()
     try:
         from langgraph.config import get_config
 
@@ -42,9 +40,13 @@ def resolve_spotify_user_id_for_tools() -> str | None:
             if base and base != "anonymous":
                 return base
     except RuntimeError:
+        # Outside of a LangGraph runnable (e.g. unit tests, CLI).
         pass
     except Exception:
         pass
+    ctx = get_spotify_user_context()
+    if ctx:
+        return ctx.strip()
     return None
 
 

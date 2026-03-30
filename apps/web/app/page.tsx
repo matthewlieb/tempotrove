@@ -711,6 +711,7 @@ export default function HomePage() {
           body: JSON.stringify({
             from: fromId,
             conversation_id: conversationId,
+            spotify_user_id: spotifyUser?.id,
             decisions,
           }),
         },
@@ -812,7 +813,12 @@ export default function HomePage() {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-request-id": requestId },
             credentials: "include",
-            body: JSON.stringify({ from: fromId, body, conversation_id: conversationId }),
+            body: JSON.stringify({
+              from: fromId,
+              body,
+              conversation_id: conversationId,
+              spotify_user_id: spotifyUser?.id,
+            }),
             signal: ctrl.signal,
           });
         } finally {
@@ -918,7 +924,12 @@ export default function HomePage() {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-request-id": requestId },
           credentials: "include",
-          body: JSON.stringify({ from: fromId, body, conversation_id: conversationId }),
+          body: JSON.stringify({
+            from: fromId,
+            body,
+            conversation_id: conversationId,
+            spotify_user_id: spotifyUser?.id,
+          }),
         },
         T_CHAT_MS,
       );
