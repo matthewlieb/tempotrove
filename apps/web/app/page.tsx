@@ -1400,7 +1400,7 @@ export default function HomePage() {
                 display: "flex",
                 flexDirection: "column",
                 border: "1px solid rgba(167,139,250,0.1)",
-                borderRadius: compact ? 0 : 0,
+                borderRadius: 0,
                 background: "linear-gradient(165deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.5) 100%)",
                 margin: compact ? "8px 0 0" : 12,
                 marginRight: compact ? 0 : 0,
