@@ -10,17 +10,24 @@ The **Next.js UI** stays on Vercel (`apps/web`). This doc is for **`src/web/app.
 
 ## 2. Start command
 
-The **`Dockerfile`** sets `ENV PYTHONPATH=/app` and **`CMD`** runs **`uvicorn`** on **`$PORT`**. Do **not** set a custom Railway start command like `PYTHONPATH=. uvicorn …` — some runners misparse that and error with “executable `pythonpath=.` not found.”
+The **`Dockerfile`** sets `ENV PYTHONPATH=/app` and **`CMD`** uses a shell so **`${PORT}`** expands. Do **not** use `PYTHONPATH=. uvicorn …` — some runners misparse that and error with “executable `pythonpath=.` not found.”
+
+### If you see: `Invalid value for "--port": "$PORT" is not a valid integer`
+
+Railway may run **Deploy → Start Command** without shell expansion, so **`$PORT`** is passed literally. Use a **shell wrapper** (matches **`railway.toml`**):
+
+```text
+/bin/sh -c "exec uvicorn src.web.app:app --host 0.0.0.0 --port $PORT"
+```
+
+Or **clear** the Start Command field so the image **`CMD`** runs.
 
 ### If you see: `The executable 'pythonpath=.' could not be found`
 
-1. **Railway dashboard → your service → Settings → Deploy** — open **Start Command**.
-2. **Delete** the whole field **or** set it exactly to:
-   ```text
-   uvicorn src.web.app:app --host 0.0.0.0 --port $PORT
-   ```
-   Never use `PYTHONPATH=. uvicorn …` in that box.
-3. Redeploy. `PYTHONPATH` is already `/app` inside the Docker image.
+1. **Settings → Deploy → Start Command** — remove any `PYTHONPATH=. …` prefix.
+2. Prefer **`/bin/sh -c "exec uvicorn … --port $PORT"`** (above) or an empty field + Docker **`CMD`**.
+
+`PYTHONPATH` is already **`/app`** in the image.
 
 ## 3. Build / install
 
