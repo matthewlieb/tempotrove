@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+/** Vercel: route segment limit (Hobby max is 300s). Do not use `vercel.json` `functions` — mis-detected projects error on legacy `api/` paths. */
+export const maxDuration = 300;
+
 /**
  * Explicit server proxy to FastAPI (replaces next.config rewrites).
  * - Forwards cookies/headers so Spotify session on 127.0.0.1 works with the UI on :3003.

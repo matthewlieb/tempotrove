@@ -36,7 +36,7 @@ If the folder must stay nested, use **git subtree** or consult [GitHub docs on s
 1. Vercel → **Add New…** → **Project** → **Install** the GitHub app if prompted (so Vercel can read your GitHub repos).
 2. **Import** your repository (e.g. `matthewlieb/tempotrove`).
 3. **Root Directory:** **`apps/web`** — **not** `./` or the monorepo root. Wrong root = wrong framework detection and failed builds.
-4. **Framework preset:** **Next.js** (auto). Do **not** pick **FastAPI** on Vercel — the API runs on **Railway** (see **`docs/RAILWAY.md`**).
+4. **Framework preset:** **Next.js** (auto). Do **not** pick **FastAPI** on Vercel — the API runs on **Railway** (see **`docs/RAILWAY.md`**). If the import URL says `framework=fastapi` or the build errors about **`functions`** patterns vs the **`api/`** directory, open **Project → Settings → General → Framework Preset** and set **Next.js**, then redeploy.
 5. **Environment variables** (Production) — **do not** paste your whole API `.env` here; **no OpenAI / Spotify / Supabase secrets** belong in Vercel unless a variable is explicitly server-only and documented.
    - **Required:** **`AGENT_API_URL`** = your **Railway** API URL, e.g. `https://your-service.up.railway.app` (no trailing slash). The Next server uses this to proxy **`/api/agent/*`**.
    - **Optional:** `NEXT_PUBLIC_APP_NAME=TempoTrove`, `NEXT_PUBLIC_USE_AGENT_PROXY=1` (default), `NEXT_PUBLIC_AGENT_API_BASE_URL` (same as API URL for UI labels / direct mode — not a substitute for `AGENT_API_URL`).

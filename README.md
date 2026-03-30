@@ -148,6 +148,17 @@ Check **`.dev/api.log`** and **`.dev/web.log`** after `./scripts/start-local.sh`
 | `TypeError: loadEnvConfig is not a function` (Next) | **Node &lt; 20.19** and/or broken **`node_modules`** | Use **Node ≥ 20.19** (see `apps/web/.nvmrc`), then `make fix-dev-env` or `cd apps/web && rm -rf node_modules && npm install` |
 | `start-local.sh` exits before starting | Node version check failed | Upgrade Node, reinstall web deps, rerun |
 
+### “Connect Spotify” / Send do nothing; console 404 on `main-app.js` or `app-pages-internals.js`
+
+The UI shell loads from HTML, but **hydration JavaScript failed** (those files live under `/_next/static/chunks/…`). Common causes: **stale or half-written `apps/web/.next`**, dev server restarted incompletely, or **`.next` removed while `next dev` was still running**.
+
+1. Stop web on **3003**: `./scripts/stop-local.sh` or `lsof -i :3003` → kill the process.
+2. Clean and restart: `cd apps/web && rm -rf .next && npm run dev` (or run `./scripts/start-local.sh` from the repo root).
+3. Wait until the terminal shows **Ready** / first compile done (can be ~30–90s on a cold start).
+4. Hard refresh the browser (**⌘⇧R** / **Ctrl+Shift+R**). Use **`http://127.0.0.1:3003`** consistently (matches API cookies; `localhost` redirects to it via `next.config.ts`).
+
+If 404s persist, try **`npm run dev`** without Turbo (avoid `dev:turbo`) and ensure **Node ≥ 20.19** (`apps/web/.nvmrc`).
+
 ### Spotify redirect URI (local)
 
 Register **exactly**:
@@ -175,7 +186,7 @@ v1-lite works without this: the agent can answer from live Spotify reads alone. 
 
 **Vercel** is a hosting company best known for deploying **Next.js** apps globally (CDN, HTTPS, preview URLs, custom domains). **We are not automatically on Vercel** — nothing deploys until you connect this repo (or `apps/web`) to a Vercel account and click deploy. The codebase is **structured** for that pattern: **Next UI** on Vercel (or any Node host) + **FastAPI** on a second host (Fly.io, Railway, Render, a VPS, etc.), with `AGENT_API_URL` / `NEXT_PUBLIC_AGENT_API_BASE_URL` pointing at your API.
 
-`apps/web/vercel.json` raises **`maxDuration`** for the `/api/agent/*` proxy (long chat/SSE); plan limits still apply — see `docs/DEPLOYMENT.md`.
+The agent proxy route exports **`maxDuration`** (see `apps/web/app/api/agent/[[...path]]/route.ts`) so long chat/SSE survives on Vercel; plan limits still apply — see `docs/DEPLOYMENT.md`.
 
 ## Production goal: “anyone on any device”
 

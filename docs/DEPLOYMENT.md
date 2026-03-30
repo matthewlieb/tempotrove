@@ -89,13 +89,13 @@ Do **not** put API keys in `NEXT_PUBLIC_*` vars (they are exposed to the browser
 3. **Environment variables:** Add the `apps/web` table above for Production (and Preview if you test OAuth there — add matching Spotify redirect for preview URL or use a branch domain).
 4. **Build:** `npm run build` from `apps/web`.
 
-`vercel.json` in `apps/web` sets a higher **`maxDuration`** for the agent proxy route so long chat/SSE requests are less likely to be cut off (plan limits still apply).
+The agent proxy App Route (`apps/web/app/api/agent/[[...path]]/route.ts`) exports **`maxDuration`** so long chat/SSE requests are less likely to be cut off (plan limits still apply). Avoid `vercel.json` → `functions` patterns for this: if Vercel misclassifies the project, those patterns are validated against the legacy `api/` folder and the build fails.
 
 ---
 
 ## 5. Limits and scaling
 
-- **Vercel serverless:** Free/Hobby functions often cap around **10–60s**. Long agent turns or **SSE** may need **Pro** and `maxDuration` (see `apps/web/vercel.json`). If you still hit limits, run the **API** on a host with **no 60s cap** and keep only short requests on Vercel, or switch chat to non-streaming and shorter turns.
+- **Vercel serverless:** Free/Hobby **`maxDuration`** tops out at **300s** on current plans. Long agent turns or **SSE** may still need **Pro** or moving heavy work to **Railway**. If you hit limits, keep the API on Railway and only proxy through Vercel, or use shorter turns / non-streaming.
 - **FastAPI:** Run **one process** or use **sticky sessions** if you add replicas without a **shared checkpointer**; prefer **`CHECKPOINT_DATABASE_URL`** so any worker can resume threads.
 - **Redis session store** is not implemented yet; multiple **stateless** API instances + signed cookies can desync in-memory session unless you move sessions to Redis (see README Future TODO).
 
