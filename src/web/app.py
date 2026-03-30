@@ -619,7 +619,16 @@ def auth_status(request: Request):
         return {"authenticated": False, "user": None}
     profile = get_user_profile(uid)
     if not profile:
-        return {"authenticated": False, "user": None}
+        # Keep signed-in state resilient when profile storage is temporarily unavailable.
+        sess_user = request.session.get("spotify_user")
+        if isinstance(sess_user, dict):
+            profile = {
+                "id": uid,
+                "display_name": sess_user.get("display_name", ""),
+                "email": sess_user.get("email", ""),
+            }
+        else:
+            return {"authenticated": False, "user": None}
     from src.auth.user_llm_keys import public_status
 
     # Include BYOK flags in the same response so the UI does not depend on a second request
