@@ -33,11 +33,12 @@ If the folder must stay nested, use **git subtree** or consult [GitHub docs on s
 
 ## 2. Connect Vercel to GitHub
 
-1. Vercel → **Add New…** → **Project** → **Install** the GitHub app if prompted.
-2. **Import** your repository.
-3. **Root Directory:** `apps/web` (critical when the repo root is `spotify-llm` and Next lives under `apps/web`).
-4. **Environment variables** (Production): set at least **`AGENT_API_URL`** = your public FastAPI `https://...` origin (no trailing slash), e.g. a **Railway** URL from **`docs/RAILWAY.md`**. See **`docs/DEPLOYMENT.md`** for the full list.
-5. Deploy. Use branch **`main`** for production; optional **Preview** deployments on **`develop`** or PRs (Vercel project settings).
+1. Vercel → **Add New…** → **Project** → **Install** the GitHub app if prompted (so Vercel can read your GitHub repos).
+2. **Import** your repository (e.g. `matthewlieb/tempotrove`).
+3. **Root Directory:** **`apps/web`** — **not** `./` or the monorepo root. Wrong root = wrong framework detection and failed builds.
+4. **Framework preset:** **Next.js** (auto). Do **not** pick **FastAPI** on Vercel — the API runs on **Railway** (see **`docs/RAILWAY.md`**).
+5. **Environment variables** (Production): set at least **`AGENT_API_URL`** = your public FastAPI `https://...` origin (no trailing slash), e.g. your **Railway** URL. See **`docs/DEPLOYMENT.md`** for the full list.
+6. **Deploy.** Use branch **`main`** for production; optional **Preview** on **`develop`** or PRs (Vercel settings).
 
 ## 3. Spotify Developer Dashboard (production)
 

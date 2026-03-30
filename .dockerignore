@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.next
+node_modules
+apps/web/node_modules
+.dev
+*.egg-info
+dist
+build
+.env
+.env.*
+!.env.example

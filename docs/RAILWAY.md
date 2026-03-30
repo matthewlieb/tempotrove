@@ -6,7 +6,7 @@ The **Next.js UI** stays on Vercel (`apps/web`). This doc is for **`src/web/app.
 
 1. Railway → **New Project** → **Deploy from GitHub repo** → pick **`matthewlieb/tempotrove`** (or your fork).
 2. **Root directory:** leave **repo root** (not `apps/web` — that is only for Vercel).
-3. Railway will detect Python from `pyproject.toml`. The repo includes **`railway.toml`** with the start command and **`/health`** for health checks.
+3. The repo ships a **`Dockerfile`** + **`railway.toml`** (Docker builder). Railway builds the image, runs **`uvicorn`** on **`$PORT`**, and health-checks **`/health`**. If you ever switch away from Docker, Nixpacks may fail on this `hatchling` layout — prefer Docker.
 
 ## 2. Start command (already in `railway.toml`)
 
