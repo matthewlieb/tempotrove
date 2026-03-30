@@ -33,6 +33,25 @@ Set **`NEXT_PUBLIC_USE_AGENT_PROXY=0`** and point **`NEXT_PUBLIC_AGENT_API_BASE_
 
 3. Save. Spotify allows multiple URIs; keep your local `http://127.0.0.1:8013/auth/callback` for dev if you still use it.
 
+### Production: OAuth sends you to `http://127.0.0.1:3003` (or other localhost)
+
+After Spotify login, **`GET /auth/callback`** redirects to **`FRONTEND_URL`** (see `src/web/app.py`). If **Railway** still has **`FRONTEND_URL=http://127.0.0.1:3003`** from local dev, you will land on localhost even when you started from **`https://tempotrove.com`**.
+
+**Fix on Railway (then redeploy the API):**
+
+| Variable | Example for custom domain |
+|----------|---------------------------|
+| **`FRONTEND_URL`** | `https://tempotrove.com` (no trailing slash) |
+| **`SPOTIFY_REDIRECT_URI`** | `https://tempotrove.com/api/agent/auth/callback` (must match Spotify Dashboard **exactly**) |
+| **`CORS_ALLOW_ORIGINS`** | Include `https://tempotrove.com` if you use direct browser→API calls |
+| **`SESSION_COOKIE_SECURE`** | `1` on HTTPS |
+
+Then **log out** in the app (or clear cookies for both domains) and **Connect Spotify** again from **`https://tempotrove.com`**.
+
+### Production: chat says “Spotify is not configured” but the sidebar shows you’re logged in
+
+Spotify tools need a **stored token** in Supabase (**`spotify_users`** via `get_user_token`). If OAuth finished on the wrong host, or **`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`** are missing on Railway, or the table was never created (**`supabase/taste_memory.sql`**), the UI session can look “logged in” while tools get **no token**. Fix **`FRONTEND_URL`** / redirect trio above, verify Supabase, and reconnect Spotify.
+
 ### Local dev: “Connect Spotify” does nothing or OAuth fails
 
 1. **API must be running** (e.g. uvicorn on **port 8013** per README). The UI calls `/api/agent/auth/spotify` → FastAPI **`GET /auth/spotify`**. No API = failed fetch (you may see a red banner or an error line in chat).
