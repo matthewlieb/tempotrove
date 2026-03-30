@@ -34,6 +34,8 @@ The **`Dockerfile`** runs **`pip install .`** from **`pyproject.toml`** and copi
 
 ## 4. Environment variables (Production)
 
+**`AGENT_API_URL`** belongs on **Vercel** (where the Next.js proxy runs), not on Railway — it tells the web app where this FastAPI service lives.
+
 Copy from **`.env.example`** and set in Railway **Variables** (same names as FastAPI expects). Minimum:
 
 | Variable | Notes |

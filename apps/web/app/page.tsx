@@ -914,7 +914,15 @@ export default function HomePage() {
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      failAssistant(`Error calling ${agentApiLabel()}.\n\n${msg}\n\nrequest_id=${requestId}`);
+      const streamHint =
+        /failed to fetch/i.test(msg) && USE_CHAT_STREAM
+          ? "\n\nStreaming often surfaces this if the API drops the connection mid-response. Try `NEXT_PUBLIC_CHAT_STREAM=0` in `apps/web/.env.local` (JSON `/chat`), or confirm `curl -sS http://127.0.0.1:8013/health` and watch the API log for tracebacks."
+          : /failed to fetch/i.test(msg)
+            ? "\n\nConfirm the API is up: `curl -sS http://127.0.0.1:8013/health` and that `AGENT_API_URL` in `apps/web/.env.local` matches."
+            : "";
+      failAssistant(
+        `Error calling ${agentApiLabel()}.\n\n${msg}${streamHint}\n\nrequest_id=${requestId}`,
+      );
     } finally {
       touchSession(conversationId);
       setBusy(false);
