@@ -33,10 +33,14 @@ _default_agent_singleton: Any = None
 _default_agent_singleton_lock = Lock()
 
 
-def _all_tools(spotify_token: str = None) -> Sequence[BaseTool]:
+def _all_tools(
+    spotify_token: str | None = None,
+    spotify_user_id: str | None = None,
+) -> Sequence[BaseTool]:
     base: list[BaseTool] = [music_web_search_tool()]
-    # Pass the token here so the tools use the user's account
-    base.extend(get_spotify_tools(access_token=spotify_token)) 
+    # Bind tools to the authenticated Spotify user so writes never fall back
+    # to a developer account during web sessions.
+    base.extend(get_spotify_tools(access_token=spotify_token, user_id=spotify_user_id))
     return base
 
 
@@ -325,7 +329,11 @@ def _interrupt_on_map() -> dict[str, Any]:
     return out
 
 
-def _compile_deep_agent_with_model(model: Any, spotify_token: str = None) -> Any:
+def _compile_deep_agent_with_model(
+    model: Any,
+    spotify_token: str | None = None,
+    spotify_user_id: str | None = None,
+) -> Any:
     """Single place that calls ``create_deep_agent`` (model is string or ``BaseChatModel`` per Deep Agents docs)."""
 
     try:
@@ -336,7 +344,7 @@ def _compile_deep_agent_with_model(model: Any, spotify_token: str = None) -> Any
             "deepagents is not installed. From repo root run: pip install -e . (see pyproject.toml)."
         ) from e
 
-    tools = list(_all_tools(spotify_token=spotify_token))    
+    tools = list(_all_tools(spotify_token=spotify_token, spotify_user_id=spotify_user_id))
     prompt = os.environ.get("AGENT_SYSTEM_PROMPT", SYSTEM_PROMPT)
 
     cp = _get_checkpointer()
@@ -386,38 +394,43 @@ def invalidate_user_agent_cache(user_id: str) -> None:
 
 
 def get_agent_for_spotify_user(spotify_user_id: str | None) -> Any:
-    # 1. Quick exit if no user
     if not spotify_user_id or not spotify_user_id.strip():
         return get_default_agent()
 
     uid = spotify_user_id.strip()
-
-    # 2. Check cache first (improves performance)
     with _user_agent_cache_lock:
         if uid in _USER_AGENT_CACHE:
             _USER_AGENT_CACHE.move_to_end(uid)
             return _USER_AGENT_CACHE[uid]
+ 
+    user_token: str | None = None
+    try:
+        from src.auth import get_user_token
 
-    # 3. Resolve user-specific requirements (secrets & token)
-    # Note: Replace 'your_db' with your actual Supabase/DB helper
-    user_token = your_db.get_token(uid) 
-    
+        token_info = get_user_token(uid) or {}
+        if isinstance(token_info, dict):
+            raw = token_info.get("access_token")
+            if isinstance(raw, str) and raw.strip():
+                user_token = raw.strip()
+    except Exception:
+        # Token refresh fallback inside SpotifyClient will still run via user_id.
+        user_token = None
+
     from src.auth.user_llm_keys import load_decrypted_secrets
+
     secrets = load_decrypted_secrets(uid)
-
-    # 4. Compile the dedicated agent
-    # Use user-specific model if they have BYOK, otherwise use default model
     model = _chat_model_for_user_secrets(secrets) if secrets else _deepagents_model()
-    
-    # CRITICAL FIX: Pass the resolved user_token here
-    graph = _compile_deep_agent_with_model(model, spotify_token=user_token)
+    graph = _compile_deep_agent_with_model(
+        model,
+        spotify_token=user_token,
+        spotify_user_id=uid,
+    )
 
-    # 5. Save to cache and manage size
     with _user_agent_cache_lock:
         _USER_AGENT_CACHE[uid] = graph
         if len(_USER_AGENT_CACHE) > _USER_AGENT_CACHE_MAX:
             _USER_AGENT_CACHE.popitem(last=False)
-            
+
     return graph
 
 
