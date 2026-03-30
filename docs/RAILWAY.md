@@ -6,28 +6,27 @@ The **Next.js UI** stays on Vercel (`apps/web`). This doc is for **`src/web/app.
 
 1. Railway → **New Project** → **Deploy from GitHub repo** → pick **`matthewlieb/tempotrove`** (or your fork).
 2. **Root directory:** leave **repo root** (not `apps/web` — that is only for Vercel).
-3. The repo ships a **`Dockerfile`** + **`railway.toml`** (Docker builder). Railway builds the image, runs **`uvicorn`** on **`$PORT`**, and health-checks **`/health`**. If you ever switch away from Docker, Nixpacks may fail on this `hatchling` layout — prefer Docker.
+3. The repo ships a **`Dockerfile`** + **`railway.toml`** (Docker builder). Railway builds the image, runs **`python -m src.web.serve`** (reads **`PORT`** from the environment), and health-checks **`/health`**. If you ever switch away from Docker, Nixpacks may fail on this `hatchling` layout — prefer Docker.
 
 ## 2. Start command
 
-The **`Dockerfile`** sets `ENV PYTHONPATH=/app` and **`CMD`** uses a shell so **`${PORT}`** expands. Do **not** use `PYTHONPATH=. uvicorn …` — some runners misparse that and error with “executable `pythonpath=.` not found.”
+The **`Dockerfile`** sets `ENV PYTHONPATH=/app` and **`CMD ["python", "-m", "src.web.serve"]`**. **`serve.py`** calls **`uvicorn.run(..., port=int(os.environ.get("PORT", "8013")))`** so the port does not depend on shell expansion.
+
+**`railway.toml`** sets the same **`startCommand`** for config-as-code. In **Railway → Settings → Deploy**, use **`python -m src.web.serve`**, or **clear** the field so the image **`CMD`** runs.
 
 ### If you see: `Invalid value for "--port": "$PORT" is not a valid integer`
 
-Railway may run **Deploy → Start Command** without shell expansion, so **`$PORT`** is passed literally. Use a **shell wrapper** (matches **`railway.toml`**):
+The dashboard **Start Command** is probably **`uvicorn … --port $PORT`** without a shell. **Replace** it with:
 
 ```text
-/bin/sh -c "exec uvicorn src.web.app:app --host 0.0.0.0 --port $PORT"
+python -m src.web.serve
 ```
 
-Or **clear** the Start Command field so the image **`CMD`** runs.
+(or delete it and rely on **`CMD`** in the **Dockerfile**).
 
 ### If you see: `The executable 'pythonpath=.' could not be found`
 
-1. **Settings → Deploy → Start Command** — remove any `PYTHONPATH=. …` prefix.
-2. Prefer **`/bin/sh -c "exec uvicorn … --port $PORT"`** (above) or an empty field + Docker **`CMD`**.
-
-`PYTHONPATH` is already **`/app`** in the image.
+Remove any **`PYTHONPATH=. uvicorn …`** prefix from **Start Command** — that form is parsed as the program name **`pythonpath=.`** on some runners.
 
 ## 3. Build / install
 

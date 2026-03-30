@@ -5,10 +5,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Must NOT use "PYTHONPATH=. uvicorn …" — Railway parses that as an executable named "pythonpath=.".
-# Wrap in sh -c so $PORT expands (Railway may exec the start command without a shell).
-# Dockerfile CMD is the same; keep this aligned if the UI overrides CMD.
-startCommand = "/bin/sh -c \"exec uvicorn src.web.app:app --host 0.0.0.0 --port $PORT\""
+# Use Python entrypoint so PORT comes from os.environ (Railway often exec's start command
+# without a shell — then `uvicorn ... --port $PORT` passes the literal "$PORT").
+# Clear any custom "uvicorn … $PORT" line in the Railway UI if deploys still fail.
+startCommand = "python -m src.web.serve"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
