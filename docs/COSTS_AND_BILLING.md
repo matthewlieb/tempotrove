@@ -20,11 +20,11 @@ You are **not** charged by Spotify for normal Web API usage within their [terms]
 | Service | Notes |
 |--------|--------|
 | **Spotify** | Their Premium/Free account; you don’t bill them for Spotify. |
-| **LLM usage** | **Today** the app uses **your** `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` on the server → **you** pay OpenAI/Anthropic for every chat. |
+| **LLM usage** | Users **without** saved keys: **you** pay via `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`. Users **with** BYOK keys pay their own provider. |
 
-## If you want users to pay for their own model usage (BYOK)
+## BYOK (users pay OpenAI / Anthropic directly)
 
-That’s a **product + security** project: users supply keys, you store them **encrypted** and attach them to `spotify_user.id`, or keys stay **only in the browser** (limited, leak-prone). See **`docs/BYOK.md`**. Not implemented in v1-lite yet.
+Implemented: users save keys via the UI → **`POST /auth/llm-keys`** → encrypted in Supabase (**`docs/BYOK.md`**). **OpenAI BYOK** runs **`gpt-4o-mini`** by default (cheap); you can override with **`DEEPAGENTS_MODEL`** if it starts with `openai:`.
 
 ## Rough mental model
 

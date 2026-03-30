@@ -36,7 +36,7 @@ If the folder must stay nested, use **git subtree** or consult [GitHub docs on s
 1. Vercel → **Add New…** → **Project** → **Install** the GitHub app if prompted.
 2. **Import** your repository.
 3. **Root Directory:** `apps/web` (critical when the repo root is `spotify-llm` and Next lives under `apps/web`).
-4. **Environment variables** (Production): set at least **`AGENT_API_URL`** = your public FastAPI `https://...` origin (no trailing slash). See **`docs/DEPLOYMENT.md`** for the full list.
+4. **Environment variables** (Production): set at least **`AGENT_API_URL`** = your public FastAPI `https://...` origin (no trailing slash), e.g. a **Railway** URL from **`docs/RAILWAY.md`**. See **`docs/DEPLOYMENT.md`** for the full list.
 5. Deploy. Use branch **`main`** for production; optional **Preview** deployments on **`develop`** or PRs (Vercel project settings).
 
 ## 3. Spotify Developer Dashboard (production)

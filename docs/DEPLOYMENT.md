@@ -33,6 +33,22 @@ Set **`NEXT_PUBLIC_USE_AGENT_PROXY=0`** and point **`NEXT_PUBLIC_AGENT_API_BASE_
 
 3. Save. Spotify allows multiple URIs; keep your local `http://127.0.0.1:8013/auth/callback` for dev if you still use it.
 
+### Local dev: “Connect Spotify” does nothing or OAuth fails
+
+1. **API must be running** (e.g. uvicorn on **port 8013** per README). The UI calls `/api/agent/auth/spotify` → FastAPI **`GET /auth/spotify`**. No API = failed fetch (you may see a red banner or an error line in chat).
+
+2. **Redirect URI must match exactly** (Spotify Dashboard ↔ `SPOTIFY_REDIRECT_URI` in the API `.env`):
+
+| Wrong (common mistake) | Right for default local API |
+|------------------------|------------------------------|
+| `http://127.0.0.1:8000/callback` | **`http://127.0.0.1:8013/auth/callback`** |
+| `http://127.0.0.1:8000/api/callback` | Path must be **`/auth/callback`**, not `/api/callback` |
+| Port **8000** | Port **8013** (or whatever you run uvicorn on — must match) |
+
+3. If you use the **Next proxy** for OAuth in dev, register instead **`http://127.0.0.1:3003/api/agent/auth/callback`** and set **`SPOTIFY_REDIRECT_URI`** to that same string on the API.
+
+4. **Website** in the Spotify app can be `http://127.0.0.1:3003` for development; it does not replace the redirect URI list.
+
 ---
 
 ## 3. Environment variables

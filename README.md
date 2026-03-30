@@ -11,10 +11,11 @@
 |-----|---------|
 | `docs/V1_LITE_SPEC.md` | Product spec + acceptance checklist |
 | `docs/DEPLOYMENT.md` | HTTPS, Vercel, Spotify redirect (`/api/agent/...`), env |
+| `docs/RAILWAY.md` | Deploy **FastAPI** on Railway; `AGENT_API_URL` on Vercel |
 | `docs/GITHUB_AND_VERCEL.md` | GitHub repo + Vercel + **tempotrove.com** |
 | `docs/LAUNCH_CHECKLIST.md` | Pre-launch security & ops checklist |
 | `docs/COSTS_AND_BILLING.md` | Who pays for DB, LLM, hosting |
-| `docs/BYOK.md` | BYOK design notes; implementation uses `USER_LLM_KEYS_FERNET_KEY` + `/auth/llm-keys` |
+| `docs/BYOK.md` | BYOK: encrypted keys; **OpenAI BYOK defaults to `gpt-4o-mini`** unless `DEEPAGENTS_MODEL` overrides |
 | `docs/ROADMAP.md` | Next steps + future WhatsApp / messaging |
 
 ## Layout
