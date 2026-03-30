@@ -1641,11 +1641,11 @@ export default function HomePage() {
                 aria-label="Tool trace"
                 style={{
                   width: compact ? "100%" : 252,
-                  maxHeight: compact ? "min(34vh, 280px)" : undefined,
+                  maxHeight: compact ? "min(26vh, 200px)" : undefined,
                   flexShrink: 0,
                   margin: compact ? "8px 0 0" : 12,
                   marginLeft: compact ? 0 : 0,
-                  padding: 12,
+                  padding: compact ? 10 : 12,
                   border: "1px solid rgba(255,255,255,0.08)",
                   borderRadius: compact ? 12 : 0,
                   borderTopRightRadius: compact ? 12 : 16,
@@ -1666,13 +1666,13 @@ export default function HomePage() {
                     top: 0,
                     zIndex: 2,
                     alignSelf: "stretch",
-                    marginLeft: -12,
-                    marginRight: -12,
-                    marginTop: -12,
-                    paddingLeft: 12,
-                    paddingRight: 12,
-                    paddingTop: 12,
-                    paddingBottom: 10,
+                    marginLeft: compact ? -10 : -12,
+                    marginRight: compact ? -10 : -12,
+                    marginTop: compact ? -10 : -12,
+                    paddingLeft: compact ? 10 : 12,
+                    paddingRight: compact ? 10 : 12,
+                    paddingTop: compact ? 10 : 12,
+                    paddingBottom: compact ? 8 : 10,
                     background: "#0f172a",
                     borderBottom: "1px solid rgba(255,255,255,0.08)",
                   }}
@@ -1728,8 +1728,9 @@ export default function HomePage() {
                 <div
                   style={{
                     flex: 1,
-                    minHeight: 0,
-                    overflowY: compact ? "auto" : "auto",
+                    /* Floor height: flex:1 with minHeight:0 alone can shrink below one line and clip "No tools yet." */
+                    minHeight: compact ? 40 : 52,
+                    overflowY: "auto",
                     overflowX: "hidden",
                     display: "flex",
                     flexDirection: "column",
@@ -1738,7 +1739,15 @@ export default function HomePage() {
                   {activityTrace.length > 0 ? (
                     <ToolTrace entries={activityTrace} variant="panel" />
                   ) : (
-                    <div style={{ fontSize: 11, color: "#6b7280", paddingTop: 4 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        lineHeight: 1.5,
+                        padding: compact ? "8px 0 6px" : "10px 0 8px",
+                        flexShrink: 0,
+                      }}
+                    >
                       {busy ? "Waiting…" : "No tools yet."}
                     </div>
                   )}
@@ -1747,7 +1756,6 @@ export default function HomePage() {
                   style={{
                     flexShrink: 0,
                     paddingTop: 10,
-                    marginTop: "auto",
                     borderTop: "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
