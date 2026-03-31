@@ -318,7 +318,10 @@ def _parse_chat_resume(
     return thread_id, session_uid, base_tid, decisions
 
 
-_SPOTIFY_ID_CLAIM_RE = re.compile(r"^[a-zA-Z0-9]{10,64}$")
+# Spotify user `id` values are often alphanumeric but may include `.` and `_` (legacy usernames).
+# See e.g. display "(@matt.lieb)" — the API id can contain a dot; a too-strict pattern caused HTTP 400
+# on every chat while the session was valid.
+_SPOTIFY_ID_CLAIM_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
 
 def _spotify_user_id_claim_error(data: dict | None, session_uid: str | None) -> JSONResponse | None:
@@ -626,7 +629,9 @@ def spotify_login(request: Request):
 @app.get("/auth/callback")
 def spotify_callback(request: Request, code: str | None = None, state: str | None = None):
     """Handle Spotify OAuth callback and persist user token."""
-    frontend = os.environ.get("FRONTEND_URL", "http://127.0.0.1:3003")
+    import spotipy
+
+    frontend = os.environ.get("FRONTEND_URL", "http://127.0.0.1:3003").rstrip("/")
     try:
         state_ok = verify_oauth_state(state)
         if not code or not state_ok:
@@ -639,11 +644,21 @@ def spotify_callback(request: Request, code: str | None = None, state: str | Non
         oauth = get_oauth()
         token_info = oauth.get_access_token(code)
         if not token_info or "access_token" not in token_info:
+            _LOG.warning("Spotify OAuth callback: token exchange returned no access_token")
             return RedirectResponse(f"{frontend}?spotify_auth=error")
-        import spotipy
-
         sp = spotipy.Spotify(auth=token_info["access_token"])
-        user = sp.current_user()
+        try:
+            user = sp.current_user()
+        except spotipy.exceptions.SpotifyException as e:
+            # Development mode: OAuth can succeed but /me returns 403 until the user is
+            # allowlisted (Dashboard → Users Management). See quota-modes docs.
+            if getattr(e, "http_status", None) == 403:
+                _LOG.warning(
+                    "Spotify OAuth callback: GET /v1/me returned 403 — user likely not in "
+                    "Development mode allowlist (Spotify Dashboard → Users Management)."
+                )
+                return RedirectResponse(f"{frontend}?spotify_auth=allowlist")
+            raise
         save_user_token(user, token_info)
         request.session["spotify_user"] = {
             "id": user.get("id", ""),
@@ -652,6 +667,7 @@ def spotify_callback(request: Request, code: str | None = None, state: str | Non
         }
         return RedirectResponse(f"{frontend}?spotify_auth=success")
     except Exception:
+        _LOG.exception("Spotify OAuth callback failed")
         return RedirectResponse(f"{frontend}?spotify_auth=error")
 
 

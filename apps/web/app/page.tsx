@@ -261,18 +261,21 @@ export default function HomePage() {
   const [showLlmOpenai, setShowLlmOpenai] = useState(false);
   const [showLlmAnthropic, setShowLlmAnthropic] = useState(false);
 
-  const [toolsOpen, setToolsOpenState] = useState(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      return localStorage.getItem(TOOLS_PANEL_LS) !== "0";
-    } catch {
-      return true;
-    }
-  });
+  // Must match SSR (always start open). Reading localStorage in useState breaks hydration
+  // when the user had collapsed the panel — server HTML ≠ first client tree (React #418).
+  const [toolsOpen, setToolsOpenState] = useState(true);
   const setToolsOpen = useCallback((open: boolean) => {
     setToolsOpenState(open);
     try {
       localStorage.setItem(TOOLS_PANEL_LS, open ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(TOOLS_PANEL_LS) === "0") setToolsOpenState(false);
     } catch {
       /* ignore */
     }
@@ -504,7 +507,21 @@ export default function HomePage() {
       })();
     } else {
       void refreshAuthStatus();
-      if (auth === "error") {
+      if (auth === "allowlist") {
+        window.history.replaceState({}, "", "/");
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            content:
+              "Spotify let you click **Agree**, but then blocked account access because this app is in " +
+              "**Development mode**. The owner must add your **Spotify email** (the one you use to log into Spotify) " +
+              "under [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) → your app → " +
+              "Settings → **Users Management** (up to 5 users). After you’re added, try **Connect Spotify** again. " +
+              "Details: https://developer.spotify.com/documentation/web-api/concepts/quota-modes",
+          },
+        ]);
+      } else if (auth === "error") {
         window.history.replaceState({}, "", "/");
         setMessages((m) => [
           ...m,
@@ -514,6 +531,8 @@ export default function HomePage() {
               "Spotify login did not complete (state or token exchange failed, or cookies were blocked). " +
               "Try again in **Chrome or Safari**, turn off strict tracking blocking for this site, " +
               "and ensure the API has **SESSION_SECRET** and **SESSION_COOKIE_SECURE=1** on Railway. " +
+              "If it **worked on the Spotify page** but you’re still not connected, check **Users Management** " +
+              "allowlist (Development mode can return 403 on `/me` after you agree). " +
               "If it keeps failing, check Railway logs for `/auth/callback`.",
           },
         ]);

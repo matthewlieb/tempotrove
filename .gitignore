@@ -1,3 +1,8 @@
+.DS_Store
+
+# Local screenshots / demos (optional; keep repo lean)
+assets/
+
 .env
 apps/web/.env.local
 .venv/

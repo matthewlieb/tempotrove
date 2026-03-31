@@ -12,6 +12,21 @@ from src.tools.spotify_context import (
 )
 from src.tools.taste_memory import MemoryDoc, ingest_memory_docs
 
+# Shown when Spotify returns 403 for a user who completed OAuth but is not allowlisted
+# (development mode). See https://developer.spotify.com/documentation/web-api/concepts/quota-modes
+SPOTIFY_DEV_MODE_403_MESSAGE = (
+    "Spotify API returned 403 Forbidden for this account. In Development mode, each user "
+    "must be added under Developer Dashboard → your app → Settings → Users Management "
+    "(name + Spotify email, up to 5 users). Login can succeed without allowlisting, but "
+    "API calls fail until the user is added. "
+    "https://developer.spotify.com/documentation/web-api/concepts/quota-modes"
+)
+
+
+class SpotifyAppAccessError(Exception):
+    """Spotify rejected API access for this user (e.g. development mode allowlist)."""
+
+
 class SpotifyClient:
     def __init__(self, access_token: str | None = None, user_id: str | None = None):
         import spotipy
@@ -28,12 +43,15 @@ class SpotifyClient:
                     # Never execute writes with a token from another account.
                     self._refresh_and_reinit(user_id)
             except spotipy.exceptions.SpotifyException as e:
+                if e.http_status == 403:
+                    raise SpotifyAppAccessError(SPOTIFY_DEV_MODE_403_MESSAGE) from e
                 if e.http_status == 401:
                     # Token expired; attempt refresh if user_id is known
                     if user_id:
                         self._refresh_and_reinit(user_id)
                     else:
                         raise ValueError("Spotify session expired. Please re-authenticate.")
+                raise
 
         # Priority 2: Fallback to database lookup if only user_id is provided
         elif user_id:
@@ -65,7 +83,9 @@ class SpotifyClient:
                 if user_data.get("id") == user_id:
                     self._sp = temp_sp
                     return
-            except spotipy.exceptions.SpotifyException:
+            except spotipy.exceptions.SpotifyException as e:
+                if e.http_status == 403:
+                    raise SpotifyAppAccessError(SPOTIFY_DEV_MODE_403_MESSAGE) from e
                 pass
 
         refresh_token = token_info.get("refresh_token")
@@ -76,7 +96,12 @@ class SpotifyClient:
 
         # Initialize with refreshed token and verify the owner matches.
         temp_sp = spotipy.Spotify(auth=new_info["access_token"])
-        user_data = temp_sp.current_user()
+        try:
+            user_data = temp_sp.current_user()
+        except spotipy.exceptions.SpotifyException as e:
+            if e.http_status == 403:
+                raise SpotifyAppAccessError(SPOTIFY_DEV_MODE_403_MESSAGE) from e
+            raise
         if user_data.get("id") != user_id:
             raise ValueError("Spotify token owner mismatch. Please reconnect Spotify.")
 
@@ -109,13 +134,20 @@ class SpotifyClient:
         return pl.get("id", ""), pl.get("uri", "")
 
     def current_user_id(self) -> str:
-        return self._sp.me().get("id", "unknown")
+        import spotipy
+
+        try:
+            return self._sp.me().get("id", "unknown")
+        except spotipy.exceptions.SpotifyException as e:
+            if e.http_status == 403:
+                raise SpotifyAppAccessError(SPOTIFY_DEV_MODE_403_MESSAGE) from e
+            raise
 
 def _get_client(
     access_token: str | None = None,
     user_id: str | None = None,
-) -> Optional[SpotifyClient]:
-    """Internal helper to get a client instance using explicit binding or request context."""
+) -> tuple[Optional[SpotifyClient], Optional[str]]:
+    """Return (client, None) or (None, user-facing error message)."""
     ctx_user_id = get_spotify_user_context()
     current_user_id = (
         user_id.strip()
@@ -123,9 +155,19 @@ def _get_client(
         else (ctx_user_id.strip() if isinstance(ctx_user_id, str) and ctx_user_id.strip() else None)
     )
     try:
-        return SpotifyClient(access_token=access_token, user_id=current_user_id)
+        return SpotifyClient(access_token=access_token, user_id=current_user_id), None
+    except SpotifyAppAccessError as e:
+        return None, str(e)
     except Exception:
-        return None
+        return None, None
+
+
+def _spotify_tool_error_detail(e: BaseException) -> str:
+    import spotipy
+
+    if isinstance(e, spotipy.exceptions.SpotifyException) and e.http_status == 403:
+        return SPOTIFY_DEV_MODE_403_MESSAGE
+    return str(e)
 
 
 def _session_user_id() -> str | None:
@@ -142,6 +184,8 @@ def _require_session_user_match(client: SpotifyClient) -> str | None:
         return "Spotify session missing. Please connect Spotify for this user first."
     try:
         actual_user_id = client.current_user_id()
+    except SpotifyAppAccessError as e:
+        return str(e)
     except Exception:
         return "Could not verify Spotify account for this session. Please reconnect Spotify."
     if actual_user_id != expected_user_id:
@@ -180,7 +224,9 @@ def _track_id_from_uri(uri: str) -> str:
 @tool
 def spotify_search_tracks(query: str, limit: int = 10, access_token: str = None) -> str:
     """Search Spotify for tracks by song name, artist, or genre. Returns track names, artists, and URIs."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing. Please authenticate."
     try:
@@ -193,12 +239,14 @@ def spotify_search_tracks(query: str, limit: int = 10, access_token: str = None)
             lines.append(f"{s['name']} — {s['artists']} | URI: {s['uri']}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Spotify search failed: {e}"
+        return f"Spotify search failed: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_search_artists(query: str, limit: int = 5, access_token: str = None) -> str:
     """Search Spotify artists by name. Returns artist IDs and Genres."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     try:
@@ -211,12 +259,14 @@ def spotify_search_artists(query: str, limit: int = 5, access_token: str = None)
             lines.append(f"{s['name']} | ID: {s['id']} | Genres: {s['genres']}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Spotify artist search failed: {e}"
+        return f"Spotify artist search failed: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_get_artist_top_tracks(artist_id: str, market: str = "US", limit: int = 5, access_token: str = None) -> str:
     """Get top tracks for a specific artist ID. Use after searching to find the right artist."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     try:
@@ -229,12 +279,14 @@ def spotify_get_artist_top_tracks(artist_id: str, market: str = "US", limit: int
             lines.append(f"{s['name']} — {s['artists']} | URI: {s['uri']}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Failed to fetch artist top tracks: {e}"
+        return f"Failed to fetch artist top tracks: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_list_playlists(limit: int = 20, access_token: str = None) -> str:
     """List the user's Spotify playlists. Returns name and ID. Use this when picking a playlist to add tracks to."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing. Please authenticate."
     try:
@@ -248,12 +300,14 @@ def spotify_list_playlists(limit: int = 20, access_token: str = None) -> str:
             lines.append(f"{name} | ID: {pid}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Failed to list playlists: {e}"
+        return f"Failed to list playlists: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_create_playlist(name: str, description: str = "", access_token: str = None) -> str:
     """Create a new Spotify playlist for the user. Returns the new playlist ID for use with spotify_add_to_playlist."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     mismatch = _require_session_user_match(client)
@@ -263,12 +317,14 @@ def spotify_create_playlist(name: str, description: str = "", access_token: str 
         pid, uri = client.create_playlist(name=name, description=description)
         return f"Successfully created playlist '{name}'. ID: {pid}"
     except Exception as e:
-        return f"Failed to create playlist: {e}"
+        return f"Failed to create playlist: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_add_to_playlist(playlist_id: str, track_uris: str, access_token: str = None) -> str:
     """Add tracks to a playlist. track_uris is a comma-separated list of spotify:track:... URIs."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     mismatch = _require_session_user_match(client)
@@ -283,12 +339,14 @@ def spotify_add_to_playlist(playlist_id: str, track_uris: str, access_token: str
         client.add_to_playlist(clean_id, uris)
         return f"Successfully added {len(uris)} track(s) to the playlist."
     except Exception as e:
-        return f"Failed to add to playlist: {e}"
+        return f"Failed to add to playlist: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_save_tracks(track_uris: str, access_token: str = None) -> str:
     """Save tracks to the user's Spotify library (Liked Songs). track_uris is a comma-separated list of URIs."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     mismatch = _require_session_user_match(client)
@@ -301,12 +359,14 @@ def spotify_save_tracks(track_uris: str, access_token: str = None) -> str:
         client.save_tracks(uris)
         return f"Saved {len(uris)} track(s) to your 'Liked Songs' library."
     except Exception as e:
-        return f"Failed to save tracks to library: {e}"
+        return f"Failed to save tracks to library: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_get_recently_played(limit: int = 20, access_token: str = None) -> str:
     """Get the user's recently played tracks. Useful for current taste signals."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     try:
@@ -320,12 +380,14 @@ def spotify_get_recently_played(limit: int = 20, access_token: str = None) -> st
             lines.append(f"{s['name']} — {s['artists']} | URI: {s['uri']}")
         return "\n".join(lines)
     except Exception as e:
-        return f"Failed to fetch recently played: {e}"
+        return f"Failed to fetch recently played: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_build_library_profile(limit: int = 20, access_token: str = None) -> str:
     """Build a concise snapshot of user taste from top tracks/artists and recent listening."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     try:
@@ -339,12 +401,14 @@ def spotify_build_library_profile(limit: int = 20, access_token: str = None) -> 
         lines.extend([f"- {t.get('name')} — {', '.join(a.get('name') for a in t.get('artists', []))}" for t in top_tracks[:10]])
         return "\n".join(lines)
     except Exception as e:
-        return f"Failed to build profile: {e}"
+        return f"Failed to build profile: {_spotify_tool_error_detail(e)}"
 
 @tool
 def spotify_ingest_taste_memory(user_id: str = "default", access_token: str = None) -> str:
     """Ingest Spotify listening data into local vector memory for long-term taste retrieval."""
-    client = _get_client(access_token)
+    client, spotify_err = _get_client(access_token)
+    if spotify_err:
+        return spotify_err
     if not client:
         return "Spotify session missing."
     try:
@@ -367,7 +431,7 @@ def spotify_ingest_taste_memory(user_id: str = "default", access_token: str = No
         added = ingest_memory_docs(target_user, docs)
         return f"Ingested {added} taste-memory documents for user '{target_user}'."
     except Exception as e:
-        return f"Failed to ingest taste memory: {e}"
+        return f"Failed to ingest taste memory: {_spotify_tool_error_detail(e)}"
 
 def get_spotify_tools(access_token: str | None = None, user_id: str | None = None) -> list[BaseTool]:
     """

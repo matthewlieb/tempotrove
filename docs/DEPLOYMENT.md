@@ -33,6 +33,16 @@ Set **`NEXT_PUBLIC_USE_AGENT_PROXY=0`** and point **`NEXT_PUBLIC_AGENT_API_BASE_
 
 3. Save. Spotify allows multiple URIs; keep your local `http://127.0.0.1:8013/auth/callback` for dev if you still use it.
 
+### Development mode: only allowlisted users can call the Web API
+
+New apps start in **Development mode** (see **App Status** in the dashboard). In that mode:
+
+- **Up to five** Spotify users may use the app’s Web API. Each must be added under **Settings → Users Management** with their **name and Spotify account email** (the email tied to their Spotify login).
+- Spotify’s docs state that users **may complete OAuth login** even when they are **not** on that list, but **API requests with their access token return HTTP 403**. That often looks like “only the app owner works” if only the owner was added.
+- The **app owner must have Spotify Premium** while the app stays in Development mode.
+
+For the official wording, see Spotify’s [Quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) (Development mode / allowlist / 403 behavior). **Extended quota** (unlimited users) is a separate approval process and (as of 2025) is aimed at organizations, not quick individual signup.
+
 ### Production: OAuth sends you to `http://127.0.0.1:3003` (or other localhost)
 
 After Spotify login, **`GET /auth/callback`** redirects to **`FRONTEND_URL`** (see `src/web/app.py`). If **Railway** still has **`FRONTEND_URL=http://127.0.0.1:3003`** from local dev, you will land on localhost even when you started from **`https://tempotrove.com`**.
