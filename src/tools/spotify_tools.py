@@ -56,6 +56,7 @@ class SpotifyClient:
                     # Token expired; attempt refresh if user_id is known
                     if user_id:
                         self._refresh_and_reinit(user_id)
+                        return  # refresh succeeded — don't re-raise
                     else:
                         raise ValueError("Spotify session expired. Please re-authenticate.")
                 raise
@@ -115,6 +116,14 @@ class SpotifyClient:
         # Persist updated token back to database.
         save_user_token(user_data, new_info)
         self._sp = temp_sp
+
+        # Invalidate the compiled agent cache so the next request gets a fresh
+        # access_token baked into the tool closures instead of the expired one.
+        try:
+            from src.agent.factory import invalidate_user_agent_cache
+            invalidate_user_agent_cache(user_id)
+        except Exception:
+            pass
 
     # --- Wrapper API Methods ---
     def search_tracks(self, q: str, limit: int = 10):
